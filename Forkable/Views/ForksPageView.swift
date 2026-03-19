@@ -135,14 +135,15 @@ struct ForksPageView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Text("\(allForks.count) total")
-                    .font(.caption)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.fGreen.opacity(0.2))
+                Text("\(allForks.count)")
+                    .font(.caption2.weight(.semibold).monospaced())
                     .foregroundColor(.fGreen)
-                    .cornerRadius(6)
+                    .frame(width: 24, height: 24)
+                    .background(Color.fGreen.opacity(0.2))
+                    .clipShape(Circle())
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color.fSlate, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
     }

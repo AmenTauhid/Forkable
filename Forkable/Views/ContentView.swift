@@ -60,13 +60,10 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 10)
-                .padding(.bottom, 8)
             }
-            .background(
-                Color.fSlate.opacity(0.97)
-                    .background(.ultraThinMaterial)
-                    .ignoresSafeArea(.container, edges: .bottom)
-            )
+            .padding(.bottom, 4)
+            .background(Color.fSlate.opacity(0.97))
+            .ignoresSafeArea(.container, edges: .bottom)
         }
         .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $showNewRecipe) { newRecipeSheet }

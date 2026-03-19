@@ -46,6 +46,7 @@ struct DashboardView: View {
         }
         .toolbarBackground(Color.fSlate, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Section Header

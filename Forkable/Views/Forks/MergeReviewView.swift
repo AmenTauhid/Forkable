@@ -1,23 +1,36 @@
 import SwiftUI
 
 struct MergeReviewView: View {
-    let recipe: Recipe
-    let branch: Branch
+    let recipeId: String
+    let branchId: String
+    @Environment(RecipeStore.self) private var store
+    @Environment(ToastManager.self) private var toastManager
     @Environment(\.dismiss) private var dismiss
 
+    private var recipe: Recipe? {
+        store.recipe(for: recipeId)
+    }
+
+    private var branch: Branch? {
+        recipe?.branches.first { $0.id == branchId }
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                branchInfoCard
-                diffSection
-                tastingNotesSection
-                changeSummarySection
-                actionButtons
+        Group {
+            if let recipe, let branch {
+                mergeContent(recipe: recipe, branch: branch)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.largeTitle)
+                        .foregroundColor(.fGreen)
+                    Text("Branch merged or not found")
+                        .foregroundColor(.fMuted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.fSlate)
             }
-            .padding()
-            .padding(.bottom, 90)
         }
-        .background(Color.fSlate)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color.fSlate, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -34,19 +47,27 @@ struct MergeReviewView: View {
         }
     }
 
+    private func mergeContent(recipe: Recipe, branch: Branch) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                branchInfoCard(branch)
+                diffSection(recipe: recipe, branch: branch)
+                tastingNotesSection(branch)
+                changeSummarySection(recipe: recipe, branch: branch)
+                actionButtons(recipe: recipe, branch: branch)
+            }
+            .padding()
+            .padding(.bottom, 90)
+        }
+        .background(Color.fSlate)
+    }
+
     // MARK: - Branch Info
 
-    private var branchInfoCard: some View {
+    private func branchInfoCard(_ branch: Branch) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AsyncImage(url: URL(string: branch.authorAvatar)) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
-                    Circle().fill(Color.fSlateLighter)
-                }
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.fAmber.opacity(0.2), lineWidth: 2))
+                initialsAvatar(name: branch.authorName, size: 40)
 
                 VStack(alignment: .leading) {
                     Text(branch.name)
@@ -77,7 +98,7 @@ struct MergeReviewView: View {
 
     // MARK: - Side-by-Side Diff
 
-    private var diffSection: some View {
+    private func diffSection(recipe: Recipe, branch: Branch) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("VISUAL DIFF: INGREDIENTS")
                 .font(.caption).fontWeight(.medium)
@@ -161,7 +182,7 @@ struct MergeReviewView: View {
     // MARK: - Tasting Notes
 
     @ViewBuilder
-    private var tastingNotesSection: some View {
+    private func tastingNotesSection(_ branch: Branch) -> some View {
         if let notes = branch.tastingNotes {
             VStack(alignment: .leading, spacing: 8) {
                 Text("TASTING NOTES")
@@ -169,14 +190,7 @@ struct MergeReviewView: View {
                     .foregroundColor(.fMuted).tracking(1)
 
                 HStack(alignment: .top, spacing: 12) {
-                    AsyncImage(url: URL(string: branch.authorAvatar)) { image in
-                        image.resizable().scaledToFit()
-                    } placeholder: {
-                        Circle().fill(Color.fSlateLighter)
-                    }
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.fAmber.opacity(0.2), lineWidth: 2))
+                    initialsAvatar(name: branch.authorName, size: 32)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(branch.authorName)
@@ -196,7 +210,7 @@ struct MergeReviewView: View {
 
     // MARK: - Change Summary
 
-    private var changeSummarySection: some View {
+    private func changeSummarySection(recipe: Recipe, branch: Branch) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("CHANGE SUMMARY")
                 .font(.caption).fontWeight(.medium)
@@ -231,9 +245,14 @@ struct MergeReviewView: View {
 
     // MARK: - Action Buttons
 
-    private var actionButtons: some View {
+    private func actionButtons(recipe: Recipe, branch: Branch) -> some View {
         VStack(spacing: 12) {
-            Button { dismiss() } label: {
+            Button {
+                store.mergeBranch(branchId, into: recipeId)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                toastManager.show("Merged into master!")
+                dismiss()
+            } label: {
                 HStack {
                     Image(systemName: "checkmark")
                     Text("Merge into Master")
@@ -246,7 +265,11 @@ struct MergeReviewView: View {
                 .cornerRadius(10)
             }
 
-            Button { dismiss() } label: {
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                toastManager.show("Kept as separate fork")
+                dismiss()
+            } label: {
                 HStack {
                     Image(systemName: "xmark")
                     Text("Keep as Separate Fork")

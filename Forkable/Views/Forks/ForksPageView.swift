@@ -9,39 +9,20 @@ private struct ForkWithRecipe: Identifiable {
 }
 
 struct ForksPageView: View {
+    @Environment(RecipeStore.self) private var store
     @State private var searchQuery = ""
     @State private var selectedFilter = "All"
     private let filters = ["All", "Mine", "Community"]
 
     private var allForks: [ForkWithRecipe] {
         var forks: [ForkWithRecipe] = []
-        for recipe in mockRecipes {
+        for recipe in store.recipes {
             for branch in recipe.branches {
                 forks.append(ForkWithRecipe(
                     fork: branch, recipeId: recipe.id,
                     recipeName: recipe.name, recipeImage: recipe.image))
             }
         }
-        // Extra community fork
-        forks.append(ForkWithRecipe(
-            fork: Branch(
-                id: "branch-extra-1", name: "Rosemary & Sea Salt",
-                authorName: "Arham",
-                authorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Arham",
-                message: "Adding rosemary and flaky sea salt topping for extra savory punch",
-                createdAt: "3 hours ago",
-                ingredients: [
-                    Ingredient(name: "All-Purpose Flour", amount: 500, unit: "g", percentage: 100),
-                    Ingredient(name: "Water", amount: 350, unit: "g", percentage: 70),
-                    Ingredient(name: "Olive Oil", amount: 60, unit: "g", percentage: 12),
-                    Ingredient(name: "Yeast", amount: 7, unit: "g", percentage: 1.4),
-                    Ingredient(name: "Salt", amount: 10, unit: "g", percentage: 2),
-                    Ingredient(name: "Fresh Rosemary", amount: 15, unit: "g", percentage: 3),
-                ],
-                tastingNotes: "The rosemary adds a wonderful fragrance during baking."),
-            recipeId: "classic-focaccia",
-            recipeName: "Classic_Focaccia",
-            recipeImage: "https://images.unsplash.com/photo-1612267191168-0024fd1b85be?w=800"))
         return forks
     }
 
@@ -82,7 +63,11 @@ struct ForksPageView: View {
 
                 HStack(spacing: 8) {
                     ForEach(filters, id: \.self) { filter in
-                        Button { selectedFilter = filter } label: {
+                        Button {
+                            withAnimation(.spring(duration: 0.3)) {
+                                selectedFilter = filter
+                            }
+                        } label: {
                             Text(filter)
                                 .font(.caption)
                                 .padding(.horizontal, 16)
@@ -101,7 +86,9 @@ struct ForksPageView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if groupedForks.isEmpty {
+                    if allForks.isEmpty {
+                        emptyForksState
+                    } else if groupedForks.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "arrow.triangle.branch")
                                 .font(.largeTitle)
@@ -148,23 +135,61 @@ struct ForksPageView: View {
         .toolbarBackground(.visible, for: .navigationBar)
     }
 
+    // MARK: - Empty State
+
+    private var emptyForksState: some View {
+        VStack(spacing: 20) {
+            Spacer().frame(height: 40)
+
+            ZStack {
+                Circle()
+                    .fill(Color.fSlateLighter.opacity(0.5))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 40))
+                    .foregroundColor(.fSlateLighter)
+            }
+
+            Text("No forks yet")
+                .font(.title3.weight(.medium))
+                .foregroundColor(.fText)
+
+            Text("Open a recipe and tap \"Fork & Tweak\"\nto create your first experiment")
+                .font(.subheadline)
+                .foregroundColor(.fMuted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Fork Group
 
     private func forkGroupSection(_ group: (recipeId: String, forks: [ForkWithRecipe])) -> some View {
-        let recipe = mockRecipes.first { $0.id == group.recipeId }
+        let recipe = store.recipe(for: group.recipeId)
 
         return VStack(alignment: .leading, spacing: 12) {
             // Recipe header
             if let recipe {
-                NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                NavigationLink(destination: RecipeDetailView(recipeId: recipe.id)) {
                     HStack(spacing: 12) {
-                        AsyncImage(url: URL(string: group.forks[0].recipeImage)) { image in
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Rectangle().fill(Color.fSlateLighter)
+                        if group.forks[0].recipeImage.isEmpty {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.fSlateLighter)
+                                .frame(width: 40, height: 40)
+                                .overlay(
+                                    Image(systemName: "book.closed")
+                                        .font(.caption)
+                                        .foregroundColor(.fMuted)
+                                )
+                        } else {
+                            AsyncImage(url: URL(string: group.forks[0].recipeImage)) { image in
+                                image.resizable().aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Rectangle().fill(Color.fSlateLighter)
+                            }
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
-                        .frame(width: 40, height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
 
                         VStack(alignment: .leading) {
                             Text(group.forks[0].recipeName)
@@ -185,10 +210,10 @@ struct ForksPageView: View {
             VStack(spacing: 12) {
                 ForEach(group.forks) { forkItem in
                     if let recipe {
-                        NavigationLink(destination: MergeReviewView(recipe: recipe, branch: forkItem.fork)) {
+                        NavigationLink(destination: MergeReviewView(recipeId: recipe.id, branchId: forkItem.fork.id)) {
                             forkCard(forkItem, recipe: recipe)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableButtonStyle())
                     }
                 }
             }
@@ -215,14 +240,7 @@ struct ForksPageView: View {
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                AsyncImage(url: URL(string: fork.authorAvatar)) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
-                    Circle().fill(Color.fSlateLighter)
-                }
-                .frame(width: 32, height: 32)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.fAmber.opacity(0.2), lineWidth: 2))
+                initialsAvatar(name: fork.authorName, size: 32)
 
                 VStack(alignment: .leading) {
                     Text(fork.name)
